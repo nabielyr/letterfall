@@ -3,8 +3,7 @@
 **A cozy little arcade typing game set in a rainy pixel town.**
 Words drop out of the sky. Type them before they hit the ground, keep your combo alive, and climb the worldwide top 10.
 
-<!-- After deploying, replace the line below with your live link, e.g. https://letterfall.vercel.app -->
-▶ **Play it in your browser:** _link coming soon_
+▶ **Play it in your browser: [letterfall-eight.vercel.app](https://letterfall-eight.vercel.app/)**
 
 ![Letterfall at dusk: flaming meteor words, a golden power-up balloon and a combo in progress](docs/screenshot-play.png)
 
