@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>Letterfall</title>
+  <meta name="description" content="Letterfall — a cheerful pixel-art typing game. Type the falling words before they hit the ground.">
+  <meta name="theme-color" content="#1d2b53">
+  <meta property="og:title" content="Letterfall">
+  <meta property="og:description" content="A cheerful pixel-art typing game. Type the falling words before they hit the ground.">
+  <meta property="og:image" content="docs/screenshot-play.png">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Cpath fill='%231d2b53' d='M3 0h2v1h1v2h1v1h1v3H7v1H1V7H0V4h1V3h1V1h1z'/%3E%3Cpath fill='%2329adff' d='M3 1h2v2h1v1h1v3H1V4h1V3h1z'/%3E%3Cpath fill='%23fff1e8' d='M2 4h1v2H2z'/%3E%3C/svg%3E">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&family=Silkscreen:wght@400;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <main id="stage" aria-label="Letterfall game"></main>
+  <!-- Invisible field that brings up the virtual keyboard on mobile. -->
+  <input id="kb" class="kb-proxy" type="text" aria-label="Type the falling words"
+    autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+    inputmode="text" enterkeyhint="go">
+  <noscript>Letterfall needs JavaScript to run.</noscript>
+</body>
+</html>

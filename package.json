@@ -1,0 +1,11 @@
+{
+  "name": "letterfall",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A cheerful pixel-art typing game. Type the falling words before they hit the ground.",
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve .",
+    "check:words": "node tools/check-words.mjs"
+  }
+}
