@@ -11,6 +11,7 @@ const KINDS = {
   dust: { count: 10, colors: [C.brown, C.grey, C.silver], speed: 40, up: [-40, -10], grav: 80, life: [0.3, 0.6], size: [1, 2] },
   spark: { count: 3, colors: [C.red, C.pink], radial: [30, 60], grav: 0, life: [0.15, 0.3], size: [1, 1] },
   chip: { count: 2, colors: [C.white, C.yellow], speed: 30, up: [-50, -20], grav: 150, life: [0.2, 0.35], size: [1, 1] },
+  stardust: { count: 24, colors: [C.white, C.yellow, C.blue, C.lavender], radial: [25, 95], grav: 25, life: [0.5, 1.1], size: [1, 2] },
   heart: { count: 14, colors: [C.red, C.pink, C.white], radial: [30, 80], grav: -20, life: [0.5, 0.9], size: [1, 2] },
 };
 

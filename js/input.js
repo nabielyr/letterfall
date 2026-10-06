@@ -3,7 +3,7 @@
 // them. Android virtual keyboards report key "Unidentified" (229) instead, so
 // those keystrokes reach a hidden <input> and are recovered by diffing its value.
 const SENTINEL = ' '; // keeps something to delete so Backspace still fires an input event
-const LETTER = /^[a-z]$/;
+const CHAR = /^[a-z0-9]$/; // letters for typing words, digits too for names
 
 export function createInput(el, handlers) {
   let last = SENTINEL;
@@ -17,7 +17,7 @@ export function createInput(el, handlers) {
 
   function emitChars(str) {
     for (const ch of str.toLowerCase()) {
-      if (LETTER.test(ch)) handlers.onChar?.(ch);
+      if (CHAR.test(ch)) handlers.onChar?.(ch);
     }
   }
 
@@ -26,7 +26,7 @@ export function createInput(el, handlers) {
     const key = e.key;
     if (key.length === 1) {
       const ch = key.toLowerCase();
-      if (!LETTER.test(ch)) return;
+      if (!CHAR.test(ch)) return;
       e.preventDefault();
       if (!e.repeat) handlers.onChar?.(ch);
       return;
@@ -47,7 +47,12 @@ export function createInput(el, handlers) {
       case 'ArrowLeft':
       case 'ArrowRight':
         e.preventDefault();
-        handlers.onArrow?.(key === 'ArrowLeft' ? -1 : 1);
+        handlers.onArrow?.(key === 'ArrowLeft' ? -1 : 1, 'x');
+        break;
+      case 'ArrowUp':
+      case 'ArrowDown':
+        e.preventDefault();
+        handlers.onArrow?.(key === 'ArrowUp' ? -1 : 1, 'y');
         break;
       default:
         break; // "Unidentified" etc. falls through to the hidden input below

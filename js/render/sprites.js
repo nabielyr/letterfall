@@ -79,6 +79,52 @@ const SPRITES = {
     '.11111.',
   ],
 
+  // Falling-star word: a five-point star and a smaller sparkle, alternated to twinkle.
+  star: [
+    '....a....',
+    '....a....',
+    '...aaa...',
+    'aaaa7aaaa',
+    '.aa777aa.',
+    '..aaaaa..',
+    '..aa.aa..',
+    '.aa...aa.',
+    '.a.....a.',
+  ],
+  sparkle: [
+    '.........',
+    '....7....',
+    '....a....',
+    '...aaa...',
+    '.7aa7aa7.',
+    '...aaa...',
+    '....a....',
+    '....7....',
+    '.........',
+  ],
+
+  // Music toggle (♫), drawn on a navy plate next to the mute button.
+  musicOn: [
+    '...777777.',
+    '...7....7.',
+    '...7....7.',
+    '...7....7.',
+    '.777..777.',
+    '7777.7777.',
+    '.77...77..',
+    '..........',
+  ],
+  musicOff: [
+    '8..666666.',
+    '.8.6....6.',
+    '..86....6.',
+    '...8....6.',
+    '.6668.666.',
+    '6666.8666.',
+    '.66...86..',
+    '.......8..',
+  ],
+
   // Mute toggle, drawn on a navy plate.
   speakerOn: [
     '...7......',

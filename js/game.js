@@ -1,24 +1,26 @@
-import { C, DIFFICULTY, GROUND_H, WORD, FONTS, RULES, SCORE, THEMES, MASCOT, FX, POWERUP } from './config.js';
+import { C, DIFFICULTY, DIFFICULTIES, GROUND_H, WORD, FONTS, RULES, SCORE, THEMES, MASCOT, FX, POWERUP, LEADERBOARD } from './config.js';
 import { difficultyAt, pickWord, pickX, rand } from './spawner.js';
 import { typeChar, releaseTarget } from './targeting.js';
 import { createStats } from './stats.js';
 import { rollPower, POWERS } from './powerups.js';
-import { loadBest, saveBest, saveLang, saveMuted } from './storage.js';
+import { loadBest, saveBest, saveLang, saveMuted, saveMusic, saveDifficulty, loadName, saveName } from './storage.js';
 import { setLang, LANGS, t } from './i18n/index.js';
-import { createBackground, themeForLevel } from './render/background.js';
+import { createBackground, themeAt } from './render/background.js';
 import { createMascot } from './render/mascot.js';
 import { createTransition } from './render/transition.js';
 import { drawWord } from './render/entities.js';
-import { drawHud, drawMuteButton } from './render/hud.js';
-import { drawStart, drawPause, drawGameOver } from './render/screens.js';
+import { drawHud, drawMuteButton, drawMusicButton } from './render/hud.js';
+import { drawStart, drawPause, drawGameOver, drawLeaderboard } from './render/screens.js';
 import { createParticles } from './fx/particles.js';
 import { createPopups } from './fx/popups.js';
 
-const BURST = { drop: 'splash', meteor: 'fire', balloon: 'confetti' };
+const BURST = { drop: 'splash', meteor: 'fire', star: 'stardust', balloon: 'confetti' };
 const RAINBOW = [C.yellow, C.orange, C.pink, C.green, C.blue];
 
 // Modes: 'start' → 'playing' ⇄ 'paused' → 'gameover' → 'playing' | 'start'
-export function createGame({ renderer, wordLists, lang, audio, startTime = 0, touch = false }) {
+//        'start' | 'gameover' ⇄ 'leaderboard'
+// ranked: false for debug runs (?level=N), which never reach the leaderboard.
+export function createGame({ renderer, wordLists, lang, difficulty, audio, leaderboard: lb, ranked = true, startTime = 0, touch = false }) {
   const r = renderer;
   const stats = createStats();
   const bg = createBackground();
@@ -33,11 +35,14 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
     modeTime: 0,
     clock: 0, // always running; drives ambient animation
     lang,
+    difficulty,
+    viewDifficulty: difficulty, // tab shown on the leaderboard screen
+    returnMode: 'start', // where the leaderboard screen goes back to
     time: 0,
     words: [],
     target: null,
     spawnTimer: 0,
-    diff: difficultyAt(0),
+    diff: difficultyAt(0, difficulty),
     score: 0,
     combo: 0,
     maxCombo: 0,
@@ -47,8 +52,12 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
     shakeMag: 0,
     flashTime: 0,
     flashColor: C.red,
-    best: loadBest(lang),
+    best: loadBest(lang, difficulty),
     result: null,
+    phaseTime: 0, // time in the current game-over phase
+    name: '', // name being typed for the leaderboard
+    runId: 0,
+    runToken: null,
     buttons: [],
     hover: null,
     lastEvent: '',
@@ -57,6 +66,7 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
   const multiplier = (combo) =>
     Math.min(SCORE.maxMultiplier, 1 + Math.floor(combo / SCORE.comboStep) * SCORE.comboBonus);
   const groundY = () => r.H - GROUND_H;
+  const boardId = (d = game.difficulty) => `${d}:${game.lang}`;
   // More particles as the combo climbs.
   const hype = () => (game.combo >= FX.hypeCombo[1] ? 3 : game.combo >= FX.hypeCombo[0] ? 2 : 1);
 
@@ -75,14 +85,35 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
     game.mode = mode;
     game.modeTime = 0;
     game.hover = null;
+    // Music everywhere except game over (its jingle plays instead); quieter while paused.
+    audio.setMusicMode(mode !== 'gameover', mode === 'paused');
   }
+  audio.setMusicMode(true);
 
   function setLanguage(next) {
     if (next === game.lang || !wordLists[next]) return;
     game.lang = next;
     setLang(next);
     saveLang(next);
-    game.best = loadBest(next);
+    game.best = loadBest(next, game.difficulty);
+    lb.refresh(boardId());
+    audio.click();
+  }
+
+  function setDifficulty(next) {
+    if (next === game.difficulty || !DIFFICULTIES.includes(next)) return;
+    game.difficulty = next;
+    saveDifficulty(next);
+    game.best = loadBest(game.lang, next);
+    lb.refresh(boardId());
+    audio.click();
+  }
+
+  const cycle = (list, current, dir) => list[(list.indexOf(current) + dir + list.length) % list.length];
+
+  function toggleMusic() {
+    audio.setMusicOn(!audio.musicOn);
+    saveMusic(audio.musicOn);
     audio.click();
   }
 
@@ -112,11 +143,21 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
     game.maxCombo = 0;
     game.lives = RULES.lives;
     game.result = null;
-    difficultyAt(game.time, game.diff);
-    bg.setTheme(themeForLevel(game.diff.level), true);
+    difficultyAt(game.time, game.difficulty, game.diff);
+    bg.setTheme(themeAt(0), true);
     mascot.reset();
     setMode('playing');
     audio.start();
+
+    // Ask the server to note the start time now; the token arrives in the background.
+    const runId = ++game.runId;
+    game.runToken = null;
+    if (ranked) {
+      lb.startRun(boardId()).then((token) => {
+        if (game.runId === runId) game.runToken = token;
+      });
+      lb.refresh(boardId());
+    }
   }
 
   function endRun() {
@@ -134,7 +175,10 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
     };
     if (result.newBestScore) game.best.score = game.score;
     if (result.newBestWpm) game.best.wpm = avgRounded;
-    if (result.newBestScore || result.newBestWpm) saveBest(game.lang, game.best);
+    if (result.newBestScore || result.newBestWpm) saveBest(game.lang, game.difficulty, game.best);
+    result.phase = ranked && lb.qualifies(boardId(), game.score) ? 'entry' : 'stats';
+    game.name = loadName();
+    game.phaseTime = 0;
     game.result = result;
     game.target = null;
     game.slowTime = 0;
@@ -143,7 +187,62 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
     audio.gameOver();
   }
 
+  function setPhase(phase) {
+    game.result.phase = phase;
+    game.phaseTime = 0;
+  }
+
+  function submitName() {
+    const result = game.result;
+    if (result.phase !== 'entry' || !game.name) return;
+    setPhase('saving');
+    saveName(game.name);
+    audio.click();
+    const runId = game.runId;
+    lb.submit(boardId(), {
+      name: game.name,
+      score: result.score,
+      chars: stats.correct,
+      wrong: stats.wrong,
+      words: stats.words,
+      duration: Math.round(stats.time * 10) / 10,
+      wpm: result.avgWpm === null ? 0 : Math.round(result.avgWpm),
+      accuracy: Math.round(result.accuracy * 1000) / 1000,
+      token: game.runToken,
+    }).then((res) => {
+      if (game.runId !== runId || game.result !== result) return;
+      result.rank = res.rank;
+      result.entryId = res.id;
+      result.notice = res.notice;
+      setPhase('board');
+      if (res.rank) audio.power();
+    });
+  }
+
+  function openLeaderboard() {
+    game.returnMode = game.mode;
+    game.viewDifficulty = game.difficulty;
+    lb.refresh(boardId());
+    audio.click();
+    setMode('leaderboard');
+  }
+
+  function closeLeaderboard() {
+    const back = game.returnMode;
+    setMode(back);
+    if (back === 'gameover') game.modeTime = RULES.gameOverInputDelay + 1; // skip the reveal again
+    audio.click();
+  }
+
+  function viewTab(d) {
+    if (!DIFFICULTIES.includes(d) || d === game.viewDifficulty) return;
+    game.viewDifficulty = d;
+    lb.refresh(boardId(d));
+    audio.click();
+  }
+
   function toMenu() {
+    lb.refresh(boardId());
     game.words.length = 0;
     game.target = null;
     clearEffects();
@@ -167,7 +266,7 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
     const jitter = 1 + rand(-DIFFICULTY.fallJitter, DIFFICULTY.fallJitter);
     game.words.push({
       text,
-      style: power ? 'balloon' : game.diff.level >= THEMES.duskLevel ? 'meteor' : 'drop',
+      style: power ? 'balloon' : THEMES.containers[bg.theme],
       power,
       seed: Math.random() * 10,
       x: pickX(w, r.W, game.words),
@@ -270,10 +369,21 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
   // ---- input ----
 
   const canAct = () => !transition.covering;
-  const gameOverReady = () => game.modeTime > RULES.gameOverInputDelay;
+  // Game-over buttons wait a moment so a keystroke meant for the last word
+  // doesn't skip the results; the same after the name is saved.
+  const gameOverReady = () =>
+    game.modeTime > RULES.gameOverInputDelay && (game.result.phase === 'stats' || game.phaseTime > 0.4);
+  const typingName = () =>
+    game.mode === 'gameover' && game.result.phase === 'entry' && game.modeTime > RULES.gameOverReveal;
+  const LETTER = /^[a-z]$/;
 
   function onChar(ch) {
-    if (game.mode !== 'playing' || !canAct()) return;
+    if (!canAct()) return;
+    if (typingName()) {
+      if (game.name.length < LEADERBOARD.nameMax) game.name += ch.toUpperCase();
+      return;
+    }
+    if (game.mode !== 'playing' || !LETTER.test(ch)) return;
     const res = typeChar(game, ch);
     if (res.kind === 'wrong' || res.kind === 'miss') {
       stats.addWrong();
@@ -298,26 +408,36 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
   }
 
   function onBackspace() {
-    if (game.mode === 'playing') releaseTarget(game);
+    if (typingName()) game.name = game.name.slice(0, -1);
+    else if (game.mode === 'playing') releaseTarget(game);
   }
 
   function onEscape() {
     if (!canAct()) return;
     if (game.mode === 'playing') pause();
     else if (game.mode === 'paused') resume();
+    else if (game.mode === 'leaderboard') closeLeaderboard();
+    else if (typingName()) setPhase('stats');
   }
 
   function onEnter() {
     if (!canAct()) return;
     if (game.mode === 'start') transition.start(startRun);
     else if (game.mode === 'paused') resume();
-    else if (game.mode === 'gameover' && gameOverReady()) transition.start(startRun);
+    else if (game.mode === 'leaderboard') closeLeaderboard();
+    else if (typingName()) submitName();
+    else if (game.mode === 'gameover' && game.result.phase !== 'saving' && gameOverReady()) transition.start(startRun);
   }
 
-  function onArrow(dir) {
-    if (game.mode !== 'start' || !canAct()) return;
-    const i = LANGS.indexOf(game.lang);
-    setLanguage(LANGS[(i + dir + LANGS.length) % LANGS.length]);
+  // Start screen: ←→ difficulty, ↑↓ language. Leaderboard: ←→ difficulty tab.
+  function onArrow(dir, axis) {
+    if (!canAct()) return;
+    if (game.mode === 'start') {
+      if (axis === 'x') setDifficulty(cycle(DIFFICULTIES, game.difficulty, dir));
+      else setLanguage(cycle(LANGS, game.lang, dir));
+    } else if (game.mode === 'leaderboard' && axis === 'x') {
+      viewTab(cycle(DIFFICULTIES, game.viewDifficulty, dir));
+    }
   }
 
   function buttonAt(x, y) {
@@ -337,12 +457,28 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
       toggleMute();
       return;
     }
-    if (!id || !canAct()) return;
-    if (id.startsWith('lang:')) {
-      setLanguage(id.slice(5));
+    if (id === 'music') {
+      toggleMusic();
       return;
     }
+    if (!id || !canAct()) return;
+    const [kind, value] = id.split(':');
+    if (kind === 'lang') return setLanguage(value);
+    if (kind === 'diff') return setDifficulty(value);
+    if (kind === 'tab') return viewTab(value);
     switch (id) {
+      case 'leaderboard':
+        openLeaderboard();
+        break;
+      case 'back':
+        closeLeaderboard();
+        break;
+      case 'save':
+        submitName();
+        break;
+      case 'skip':
+        if (game.result.phase === 'entry') setPhase('stats');
+        break;
       case 'play':
         transition.start(startRun);
         break;
@@ -366,6 +502,7 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
   function update(dt) {
     game.clock += dt;
     game.modeTime += dt;
+    game.phaseTime += dt;
     transition.update(dt);
     bg.update(dt);
 
@@ -388,8 +525,9 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
 
     stats.update(dt);
     game.time += dt;
-    difficultyAt(game.time, game.diff);
-    const theme = themeForLevel(game.diff.level);
+    difficultyAt(game.time, game.difficulty, game.diff);
+    audio.setMusicLevel(game.diff.level);
+    const theme = themeAt(stats.time);
     if (theme !== bg.theme) bg.setTheme(theme);
 
     // Slow-mo stretches the world, not the clock: WPM still uses real time.
@@ -443,18 +581,42 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
         wpm: stats.avgWpm(),
         accuracy: stats.accuracy(),
         level: game.diff.level,
+        difficulty: game.difficulty,
         slow: game.slowTime / POWERUP.slowTime,
         time: game.clock,
       });
     }
 
-    const ui = { best: game.best, hoverId: game.hover, time: game.modeTime, touch, lang: game.lang, langs: LANGS };
+    const ui = {
+      best: game.best,
+      hoverId: game.hover,
+      time: game.modeTime,
+      touch,
+      lang: game.lang,
+      langs: LANGS,
+      difficulty: game.difficulty,
+      difficulties: DIFFICULTIES,
+    };
     if (game.mode === 'start') game.buttons = drawStart(r, ui);
     else if (game.mode === 'paused') game.buttons = drawPause(r, ui);
-    else if (game.mode === 'gameover') {
-      game.buttons = drawGameOver(r, { ...ui, result: game.result, reveal: RULES.gameOverReveal });
+    else if (game.mode === 'leaderboard') {
+      game.buttons = drawLeaderboard(r, {
+        ...ui,
+        time: game.clock,
+        difficulty: game.viewDifficulty,
+        view: lb.view(boardId(game.viewDifficulty)),
+      });
+    } else if (game.mode === 'gameover') {
+      game.buttons = drawGameOver(r, {
+        ...ui,
+        result: game.result,
+        reveal: RULES.gameOverReveal,
+        name: game.name,
+        view: lb.view(boardId()),
+      });
     } else game.buttons = [];
     game.buttons.push(drawMuteButton(r, audio.muted, game.hover === 'mute'));
+    game.buttons.push(drawMusicButton(r, audio.musicOn, game.hover === 'music'));
 
     transition.draw(r);
   }
@@ -471,12 +633,12 @@ export function createGame({ renderer, wordLists, lang, audio, startTime = 0, to
     const d = game.diff;
     const peak = stats.peakWpm === null ? '--' : stats.peakWpm.toFixed(1);
     return [
-      `mode ${game.mode}  ${game.lang}  view ${r.W}x${r.H} @${r.scale}x`,
+      `mode ${game.mode}${game.result ? '/' + game.result.phase : ''}  ${game.difficulty}:${game.lang}  view ${r.W}x${r.H} @${r.scale}x`,
       `time ${game.time.toFixed(1)}s  play ${stats.time.toFixed(1)}s  lvl ${d.level}  ${bg.theme}`,
       `words ${game.words.length}/${d.maxWords}  fall ${d.fallTime.toFixed(2)}s`,
       `spawn ${d.spawnInterval.toFixed(2)}s  tiers ${d.tierWeights.map((v) => Math.round(v)).join('/')}`,
       `ok ${stats.correct} bad ${stats.wrong} roll ${stats.rollingWpm().toFixed(1)} peak ${peak}`,
-      `particles ${particles.count}  popups ${popups.count}  slow ${game.slowTime.toFixed(1)}`,
+      `particles ${particles.count}  popups ${popups.count}  slow ${game.slowTime.toFixed(1)}  board ${lb.online === null ? '?' : lb.online ? 'online' : 'local'}${game.runToken ? ' +token' : ''}`,
       `target ${game.target ? game.target.text : '-'}  mascot ${mascot.mood}`,
       game.lastEvent,
     ];

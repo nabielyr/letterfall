@@ -45,6 +45,23 @@ const DEFS = {
     drizzle: 0.35,
     drizzleColor: 'e',
   },
+  dawn: {
+    sky: [[0, '1'], [0.25, 'd'], [0.55, 'e'], [0.8, 'f']],
+    sun: { x: 0.74, y: 0.6, r: 12, core: 'a', rim: 'f' },
+    stars: 0.12,
+    hills: ['e', 'd'],
+    buildings: ['f', 'd', 'e', '6', 'd'],
+    outline: '1',
+    roof: '2',
+    window: '1',
+    lit: 'a',
+    litChance: 0.18,
+    grass: ['b', '3'],
+    dirt: ['4', '9', '5'],
+    clouds: ['7', 'f'],
+    drizzle: 0.5,
+    drizzleColor: 'f',
+  },
   night: {
     sky: [[0, '0'], [0.4, '1'], [0.9, '2']],
     moon: { x: 0.78, y: 0.14, r: 8 },
@@ -448,8 +465,13 @@ export function createBackground() {
   };
 }
 
-export function themeForLevel(level) {
-  if (level >= THEMES.nightLevel) return 'night';
-  if (level >= THEMES.duskLevel) return 'dusk';
-  return 'day';
+// Theme for a moment in the run (seconds of play), following THEMES.cycle.
+const CYCLE_LENGTH = THEMES.cycle.reduce((sum, [, secs]) => sum + secs, 0);
+export function themeAt(t) {
+  let m = t % CYCLE_LENGTH;
+  for (const [name, secs] of THEMES.cycle) {
+    if (m < secs) return name;
+    m -= secs;
+  }
+  return THEMES.cycle[0][0];
 }

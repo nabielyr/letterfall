@@ -6,10 +6,10 @@ const lerp = (a, b, k) => a + (b - a) * k;
 export const rand = (min, max) => min + Math.random() * (max - min);
 
 // Fills `out` in place so the per-frame call allocates nothing.
-export function difficultyAt(t, out = { tierWeights: [0, 0, 0] }) {
-  const d = DIFFICULTY;
+export function difficultyAt(t, preset = 'medium', out = { tierWeights: [0, 0, 0] }) {
+  const d = DIFFICULTY.presets[preset];
   const k = Math.min(1, Math.max(0, t / d.rampSeconds));
-  out.level = Math.floor(t / d.levelSeconds) + 1;
+  out.level = Math.floor(t / DIFFICULTY.levelSeconds) + 1;
   out.fallTime = lerp(d.fallTime[0], d.fallTime[1], k);
   out.spawnInterval = lerp(d.spawnInterval[0], d.spawnInterval[1], k);
   out.maxWords = Math.round(lerp(d.maxWords[0], d.maxWords[1], k));

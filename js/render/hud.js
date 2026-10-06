@@ -7,7 +7,7 @@ const PAD = 4;
 const LINE = 10;
 const RAINBOW = [C.yellow, C.orange, C.pink, C.green, C.blue];
 
-// h: { score, combo, mult, lives, wpm (number|null), accuracy (0–1), level, slow (0–1), time }
+// h: { score, combo, mult, lives, wpm (number|null), accuracy (0–1), level, difficulty, slow (0–1), time }
 export function drawHud(r, h) {
   // Left: score and combo. High combos flash through the palette.
   r.text(`${t('hudScore')} ${h.score}`, PAD, PAD, { ...UI, color: C.white });
@@ -46,7 +46,7 @@ export function drawHud(r, h) {
   const wpm = h.wpm === null ? '--' : Math.round(h.wpm);
   r.text(`${t('hudWpm')} ${wpm}`, r.W - PAD, PAD, { ...right, color: C.white });
   r.text(`${t('hudAcc')} ${Math.floor(h.accuracy * 100)}%`, r.W - PAD, PAD + LINE, { ...right, color: C.white });
-  r.text(t('hudLevel', { level: h.level }), r.W - PAD, PAD + LINE * 2, { ...right, color: C.peach });
+  r.text(`${t('hudLevel', { level: h.level })} · ${t(`diff_${h.difficulty}`)}`, r.W - PAD, PAD + LINE * 2, { ...right, color: C.white });
 }
 
 // Bottom-right, on the ground strip. Returns its button for hit-testing.
@@ -58,4 +58,15 @@ export function drawMuteButton(r, muted, hovered) {
   r.rect(x, y, w, h, hovered ? C.blue : C.navy);
   r.sprite(sprite(muted ? 'speakerOff' : 'speakerOn'), x + 2, y + 2);
   return { id: 'mute', x, y, w, h };
+}
+
+// Left of the mute button: turns only the background music on or off.
+export function drawMusicButton(r, on, hovered) {
+  const w = 14;
+  const h = 12;
+  const x = r.W - (w + 4) * 2;
+  const y = r.H - GROUND_H + 6;
+  r.rect(x, y, w, h, hovered ? C.blue : C.navy);
+  r.sprite(sprite(on ? 'musicOn' : 'musicOff'), x + 2, y + 2);
+  return { id: 'music', x, y, w, h };
 }

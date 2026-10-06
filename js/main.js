@@ -1,9 +1,10 @@
-import { DIFFICULTY, FONTS, MAX_DT } from './config.js';
+import { DIFFICULTY, DIFFICULTIES, FONTS, MAX_DT } from './config.js';
 import { createRenderer } from './render/renderer.js';
 import { createGame } from './game.js';
 import { createDebug } from './debug.js';
 import { createInput } from './input.js';
-import { loadLang, loadMuted } from './storage.js';
+import { loadLang, loadMuted, loadMusic, loadDifficulty } from './storage.js';
+import { createLeaderboard } from './leaderboard.js';
 import { createAudio } from './audio.js';
 import { LANGS, setLang } from './i18n/index.js';
 import wordsEn from './data/words.en.js';
@@ -36,9 +37,13 @@ async function boot() {
   const saved = loadLang(browserLang);
   const lang = LANGS.includes(saved) ? saved : 'en';
   setLang(lang);
+  const savedDifficulty = loadDifficulty('medium');
+  const difficulty = DIFFICULTIES.includes(savedDifficulty) ? savedDifficulty : 'medium';
+  const leaderboard = createLeaderboard();
+  leaderboard.refresh(`${difficulty}:${lang}`);
 
   // Browsers only allow audio after a user gesture; unlock on the first one.
-  const audio = createAudio({ muted: loadMuted() });
+  const audio = createAudio({ muted: loadMuted(), music: loadMusic() });
   const unlockAudio = () => audio.unlock();
   window.addEventListener('keydown', unlockAudio, { capture: true });
   window.addEventListener('pointerdown', unlockAudio, { capture: true });
@@ -50,6 +55,9 @@ async function boot() {
     audio,
     wordLists: { en: wordsEn, id: wordsId },
     lang,
+    difficulty,
+    leaderboard,
+    ranked: startLevel === 1, // ?level=N debug runs stay off the leaderboard
     startTime: (startLevel - 1) * DIFFICULTY.levelSeconds,
     touch: window.matchMedia('(pointer: coarse)').matches,
   });
@@ -77,11 +85,16 @@ async function boot() {
 
   // Never let the game run unattended.
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) game.pause();
+    if (document.hidden) {
+      game.pause();
+      audio.suspend();
+    } else {
+      audio.resume();
+    }
   });
   window.addEventListener('blur', game.pause);
 
-  if (debug) window.letterfall = { game, renderer, audio, debug };
+  if (debug) window.letterfall = { game, renderer, audio, debug, leaderboard };
 
   let last = performance.now();
   function frame(now) {

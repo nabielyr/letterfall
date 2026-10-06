@@ -64,10 +64,17 @@ export const WORD = {
   edgeMargin: 4,
 };
 
-// Sky theme and word container by level.
+// The sky cycles on a timer while playing (like a day/night cycle), so the
+// scenery keeps changing. Seconds per theme; the cycle then repeats.
 export const THEMES = {
-  duskLevel: 5, // raindrops turn into meteors here
-  nightLevel: 8,
+  cycle: [
+    ['day', 40],
+    ['dusk', 20],
+    ['night', 40],
+    ['dawn', 20],
+  ],
+  // What the words fall as under each sky.
+  containers: { day: 'drop', dusk: 'meteor', night: 'star', dawn: 'drop' },
   fadeTime: 2.4, // seconds for the dithered sky crossfade
 };
 
@@ -123,17 +130,51 @@ export const STATS = {
   rollingWindow: 10, // seconds, for peak WPM
 };
 
+// Each preset ramps from its first value to its second over rampSeconds.
+// fallTime: seconds from top to ground. tierWeights: short / medium / long words.
 export const DIFFICULTY = {
   levelSeconds: 30,
-  rampSeconds: 300, // time until every value reaches its end point
-  fallTime: [9, 3.5], // seconds from top to ground
   fallJitter: 0.15, // ± fraction of fallTime per word
-  spawnInterval: [2.2, 0.7],
   spawnJitter: 0.2,
-  maxWords: [3, 9],
-  // short / medium / long word weights
-  tierWeights: [
-    [80, 20, 0],
-    [25, 45, 30],
-  ],
+  presets: {
+    easy: {
+      rampSeconds: 360,
+      fallTime: [10.5, 5],
+      spawnInterval: [2.6, 1.2],
+      maxWords: [2, 6],
+      tierWeights: [
+        [90, 10, 0],
+        [45, 40, 15],
+      ],
+    },
+    medium: {
+      rampSeconds: 300,
+      fallTime: [9, 3.5],
+      spawnInterval: [2.2, 0.7],
+      maxWords: [3, 9],
+      tierWeights: [
+        [80, 20, 0],
+        [25, 45, 30],
+      ],
+    },
+    hard: {
+      rampSeconds: 240,
+      fallTime: [7, 2.8],
+      spawnInterval: [1.6, 0.5],
+      maxWords: [4, 12],
+      tierWeights: [
+        [50, 40, 10],
+        [10, 40, 50],
+      ],
+    },
+  },
+};
+
+export const DIFFICULTIES = Object.keys(DIFFICULTY.presets);
+
+export const LEADERBOARD = {
+  size: 10,
+  nameMax: 10,
+  api: '/api/leaderboard',
+  timeout: 6000, // ms before falling back to the on-device board
 };

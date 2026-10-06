@@ -18,6 +18,13 @@ const STYLES = {
     normal: { o: '0', b: '2', s: '1', h: '8', text: C.white, typed: C.white },
     target: { o: 'a', b: '1', s: '0', h: '2', text: C.white, typed: C.yellow },
   },
+  // Night: a glowing white star with a yellow halo outline. Distinct from the
+  // gold power-up balloons, which also fall at night.
+  star: {
+    radius: 'capsule',
+    normal: { o: 'a', b: '7', s: 'f', h: null, text: C.navy, typed: C.navy },
+    target: { o: '7', b: '1', s: 'd', h: null, text: C.white, typed: C.yellow },
+  },
   balloon: {
     radius: 'capsule',
     normal: { o: '4', b: 'a', s: '9', h: '7', text: C.navy, typed: C.navy },
@@ -93,6 +100,20 @@ function drawFlames(r, x, y, w, t) {
   }
 }
 
+// Sparkling trail above a falling star: three dotted streaks with twinkles.
+const TRAIL = [C.white, C.yellow, C.blue, C.lavender];
+function drawStarTrail(r, x, y, w, t) {
+  for (let k = 0; k < 3; k++) {
+    const sx = Math.round(x + w * (0.3 + k * 0.2));
+    const len = 6 + Math.round(3 * Math.sin(t * 5 + k * 2));
+    for (let i = 1; i <= len; i += 2) {
+      r.rect(sx, y - i, 1, 1, TRAIL[(i + k + Math.floor(t * 8)) % TRAIL.length]);
+    }
+  }
+  if (Math.sin(t * 7) > 0.3) r.rect(Math.round(x + w * 0.4), y - 9, 1, 1, C.white);
+  if (Math.sin(t * 6 + 2) > 0.3) r.rect(Math.round(x + w * 0.62), y - 11, 1, 1, C.yellow);
+}
+
 function drawBalloonString(r, cx, y, t, knot) {
   r.rect(cx - 1, y - 1, 3, 2, knot);
   for (let i = 0; i < 8; i++) {
@@ -114,6 +135,7 @@ export function drawWord(r, w, isTarget, time) {
   const cx = x + Math.round(w.w / 2);
 
   if (w.style === 'meteor') drawFlames(r, x, y, w.w, t);
+  if (w.style === 'star') drawStarTrail(r, x, y, w.w, t);
   if (w.style === 'balloon') {
     drawBalloonString(r, cx, y + w.h, t, PALETTE[parseInt(colors.o, 16)]);
     if (w.power) r.sprite(sprite(POWERS[w.power].icon), cx - 3 + Math.round(Math.sin(t * 4 - 6.4)), y + w.h + 9);
@@ -121,6 +143,10 @@ export function drawWord(r, w, isTarget, time) {
   r.sprite(body(w.style, variant, wrong, w.w, w.h), x, y);
   if (w.style === 'drop') {
     r.sprite(sprite('dropTip', { o: wrong ? WRONG_OUTLINE : colors.o, b: colors.b }), cx - 3, y - 4);
+  }
+  if (w.style === 'star') {
+    // Twinkles on the left cap, alternating between the star and a sparkle.
+    r.sprite(sprite(Math.floor(t * 3) % 2 ? 'sparkle' : 'star'), x - 4, y + Math.round(w.h / 2) - 5);
   }
 
   const textY = y + w.h / 2 + 1;

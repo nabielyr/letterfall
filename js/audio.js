@@ -2,13 +2,22 @@
 // oscillators with short envelopes, plus filtered white noise for booms.
 // The AudioContext can only start after a user gesture, so unlock() is called
 // from the first key press / tap; before that every effect is a silent no-op.
-const VOLUME = 0.5;
+// Background music (music.js) shares the master volume, so mute silences both;
+// the music toggle only affects the music.
+import { createMusic } from './music.js';
 
-export function createAudio({ muted = false } = {}) {
+const VOLUME = 0.5;
+const MUSIC_VOLUME = 0.9; // relative to the master
+const MUSIC_DUCKED = 0.25;
+
+export function createAudio({ muted = false, music: musicOn = true } = {}) {
   let ctx = null;
   let master = null;
   let noiseBuffer = null;
-  const a = { muted };
+  let music = null;
+  let musicWanted = false; // does the current screen want music?
+  let musicDucked = false;
+  const a = { muted, musicOn };
 
   function init() {
     if (ctx) return true;
@@ -21,7 +30,17 @@ export function createAudio({ muted = false } = {}) {
     noiseBuffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const data = noiseBuffer.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    music = createMusic(ctx, master, noiseBuffer);
     return true;
+  }
+
+  function syncMusic() {
+    if (!music) return;
+    const play = a.musicOn && musicWanted && ctx.state === 'running';
+    const volume = musicDucked ? MUSIC_VOLUME * MUSIC_DUCKED : MUSIC_VOLUME;
+    if (play && !music.playing) music.start(volume);
+    else if (!play && music.playing) music.stop();
+    else if (play) music.setVolume(volume);
   }
 
   const ready = () => ctx && !a.muted && ctx.state === 'running';
@@ -65,7 +84,39 @@ export function createAudio({ muted = false } = {}) {
 
   a.unlock = () => {
     if (!init()) return;
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') ctx.resume().then(syncMusic);
+    else syncMusic();
+  };
+
+  // Called by the game on every screen change.
+  a.setMusicMode = (wanted, ducked = false) => {
+    musicWanted = wanted;
+    musicDucked = ducked;
+    syncMusic();
+  };
+
+  a.setMusicOn = (on) => {
+    a.musicOn = on;
+    syncMusic();
+  };
+
+  a.setMusicLevel = (level) => music?.setLevel(level);
+
+  // Debug helpers (used by ?debug=1 tests).
+  Object.defineProperty(a, 'musicPlaying', { get: () => Boolean(music?.playing) });
+  a.tap = () => {
+    if (!ctx) return null;
+    const analyser = ctx.createAnalyser();
+    master.connect(analyser);
+    return analyser;
+  };
+
+  // Hidden tab: freeze all audio (the music scheduler follows the frozen clock).
+  a.suspend = () => {
+    if (ctx && ctx.state === 'running') ctx.suspend();
+  };
+  a.resume = () => {
+    if (ctx && ctx.state === 'suspended') ctx.resume().then(syncMusic);
   };
 
   a.setMuted = (m) => {
@@ -80,6 +131,9 @@ export function createAudio({ muted = false } = {}) {
     if (style === 'meteor') {
       noise(0.28, 0.3, 1200);
       tone('square', 220, 55, 0.22, 0.07);
+    } else if (style === 'star') {
+      arpeggio('triangle', [1319, 1568, 2093, 2637], 0.035, 0.12, 0.07);
+      tone('sine', 3136, 3136, 0.25, 0.03, 0.12);
     } else if (style === 'balloon') {
       noise(0.05, 0.2, 4000);
       arpeggio('square', [784, 988, 1175, 1568], 0.045, 0.07, 0.06);
